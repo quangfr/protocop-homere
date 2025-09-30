@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prototype SIRH — Synchro (2 sites + 1 central)</title>
+  <style>
+    :root{
+      --bg:#f7f7fb; --card:#ffffff; --text:#111827; --muted:#6b7280; --accent:#2563eb; --accent-2:#10b981;
+      --danger:#ef4444; --warn:#f59e0b; --ok:#059669; --border:#e5e7eb; --chip:#eef2ff;
+    }
+    *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#fff,rgba(255,255,255,.96));border-bottom:1px solid var(--border)}
+    .wrap{max-width:1300px;margin:0 auto;padding:16px}
+    h1{font-size:20px;margin:0 0 8px 0}
+    .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.04)}
+    .card h2{font-size:16px;margin:0}
+    .card-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}
+    .status{display:flex;gap:8px;align-items:center}
+    .badge{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:#fafafa;color:var(--muted)}
+    .badge.online{background:#ecfdf5;color:var(--ok);border-color:#d1fae5}
+    .badge.offline{background:#fff7ed;color:var(--warn);border-color:#ffedd5}
+    .panel{padding:12px 14px;display:grid;gap:12px}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    label{font-size:12px;color:var(--muted)}
+    select,input,button,textarea{font-size:14px}
+    .ctl{display:grid;gap:6px}
+    .ctl input,.ctl select,.ctl textarea{padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#fff}
+    .btn{padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;cursor:pointer}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .btn.success{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+    .btn.warn{background:var(--warn);border-color:var(--warn);color:#111}
+    .btn.ghost{background:#fff}
+    .btn[disabled]{opacity:.45;cursor:not-allowed}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+    .chip{background:var(--chip);border:1px solid #e0e7ff;color:#3730a3;padding:4px 8px;border-radius:999px;font-size:12px}
+    .log{max-height:160px;overflow:auto;border:1px dashed var(--border);border-radius:10px;padding:8px;background:#fcfcff}
+    .log p{margin:4px 0;font-size:12px;color:#1f2937}
+    .muted{color:var(--muted)}
+    .section h3{margin:6px 0 4px 0;font-size:13px;color:#111}
+    .section{border-top:1px solid var(--border);padding-top:8px}
+    .kpi{display:flex;gap:10px;flex-wrap:wrap}
+    .kpi .badge{background:#f1f5f9}
+    .note{font-size:12px;color:var(--muted)}
+    .divider{height:1px;background:var(--border);}
+    @media (max-width:1080px){.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Prototype SIRH — Synchronisation multi-sites (thème clair)</h1>
+      <div class="toolbar">
+        <div class="ctl">
+          <label>Stratégie de synchro</label>
+          <select id="strategy">
+            <option value="S1">S1 — Simple & Carrée (central prioritaire)</option>
+            <option value="S2">S2 — Fusion intelligente (auto + médiation ciblée)</option>
+          </select>
+        </div>
+        <div class="ctl">
+          <label>Période de paie</label>
+          <select id="period"></select>
+        </div>
+        <div class="ctl">
+          <label>&nbsp;</label>
+          <button class="btn" id="reset">Réinitialiser la démo</button>
+        </div>
+        <div class="kpi">
+          <span class="badge" id="kpiStrategy">S1</span>
+          <span class="badge" id="kpiPeriod">2025-09</span>
+          <span class="badge">2 employés</span>
+          <span class="badge">2 sites + 1 central</span>
+        </div>
+      </div>
+      <p class="note">Astuce : passe un site en <b>hors-ligne</b>, fais des modifications locales, puis clique <b>Sync → Central</b> pour voir les <b>conflits</b> et la <b>résolution appliquée</b> dans les logs ✨</p>
+    </div>
+  </header>
+
+  <main class="wrap" style="padding-top:12px">
+    <div class="row">
+      <!-- Site A -->
+      <section class="card" id="siteA">
+        <div class="card-header">
+          <div class="status">
+            <h2>🏬 Site A</h2>
+            <span class="badge online" data-role="statusBadge">En ligne</span>
+          </div>
+          <div class="toolbar">
+            <button class="btn" data-role="toggleOnline">Basculer en ligne / hors-ligne</button>
+            <button class="btn primary" data-role="syncUp">Sync → Central</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="grid-2">
+            <div class="ctl">
+              <label>Employé</label>
+              <select data-role="employeeSelect"></select>
+            </div>
+            <div class="ctl">
+              <label>Modèle de contrat (catalogue central)</label>
+              <select data-role="contractModel"></select>
+              <button class="btn" data-role="applyModel">Appliquer au contrat</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Bulletins — Variables mensuelles</h3>
+            <div class="grid-3">
+              <div class="ctl"><label>Type</label>
+                <select data-role="varType">
+                  <option value="ABSNP">Absence non payée (jours)</option>
+                  <option value="HS">Heures supplémentaires (h)</option>
+                  <option value="FRAIS">Remboursement frais (€)</option>
+                </select>
+              </div>
+              <div class="ctl"><label>Valeur</label>
+                <input type="number" step="0.5" placeholder="ex: 2" data-role="varValue" />
+              </div>
+              <div class="ctl"><label>&nbsp;</label>
+                <button class="btn" data-role="addVar">Ajouter la variable</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Employés — Gestion</h3>
+            <div class="grid-2">
+              <div class="ctl"><label>Changer adresse</label>
+                <input type="text" placeholder="ex: 12 rue des Lilas" data-role="newAddress" />
+                <button class="btn" data-role="changeAddress">Mettre à jour</button>
+              </div>
+              <div class="ctl"><label>Affecter au site</label>
+                <select data-role="assignSite">
+                  <option value="A">Site A</option>
+                  <option value="B">Site B</option>
+                </select>
+                <button class="btn" data-role="doAssign">Affecter</button>
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="ctl"><label>Terminer contrat (date)</label>
+                <input type="date" data-role="endDate" />
+                <button class="btn" data-role="endContract">Proposer fin</button>
+              </div>
+              <div class="ctl"><label>Amender contrat (grade / indemnités)</label>
+                <div class="grid-3">
+                  <input class="ctl" data-role="grade" type="number" min="1" max="5" placeholder="grade" />
+                  <input class="ctl" data-role="allowance" type="number" step="10" placeholder="indemnités (€)" />
+                  <button class="btn" data-role="amendContract">Amender</button>
+                </div>
+                <span class="note">S1 : action désactivée (central seul). S2 : brouillon local, arbitrage à la synchro.</span>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="grid-2">
+              <div class="ctl"><label>Créer un employé (nom)</label>
+                <input type="text" data-role="newEmpName" placeholder="Nom Prénom" />
+                <button class="btn" data-role="createEmp">Créer</button>
+              </div>
+              <div class="ctl"><label>Clôture locale (brouillon)</label>
+                <button class="btn" data-role="localClose">Pré-clôturer la période</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Journal Site A</h3>
+            <div class="log" data-role="log"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Central -->
+      <section class="card" id="central">
+        <div class="card-header">
+          <div class="status">
+            <h2>🏢 Central</h2>
+            <span class="badge online">Toujours en ligne</span>
+          </div>
+          <div class="toolbar">
+            <button class="btn success" id="syncAll">Sync global (tous sites)</button>
+            <button class="btn warn" id="closePeriod">Sceller la clôture de paie</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="grid-2">
+            <div class="ctl">
+              <label>Employé (central)</label>
+              <select id="centralEmp"></select>
+            </div>
+            <div class="ctl">
+              <label>Amender contrat (central)</label>
+              <div class="grid-3">
+                <input id="centralGrade" type="number" min="1" max="5" placeholder="grade" />
+                <input id="centralAllowance" type="number" step="10" placeholder="indemnités (€)" />
+                <button class="btn" id="centralAmend">Enregistrer</button>
+              </div>
+              <span class="note">Utilise ceci pour créer un conflit avec un amendement local en S2 😉</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Modèles de contrat (catalogue central)</h3>
+            <div class="grid-3">
+              <div class="ctl">
+                <label>Modèle</label>
+                <select id="modelPick"></select>
+              </div>
+              <div class="ctl">
+                <label>Taux HS (%)</label>
+                <input id="modelOT" type="number" step="1" />
+              </div>
+              <div class="ctl">
+                <label>Salaire grade 2 (€)</label>
+                <input id="modelG2" type="number" step="50" />
+              </div>
+            </div>
+            <div class="toolbar" style="margin-top:6px">
+              <button class="btn" id="saveModel">Mettre à jour le modèle (↑ version)</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Journal Central</h3>
+            <div class="log" id="centralLog"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Site B -->
+      <section class="card" id="siteB">
+        <div class="card-header">
+          <div class="status">
+            <h2>🏬 Site B</h2>
+            <span class="badge online" data-role="statusBadge">En ligne</span>
+          </div>
+          <div class="toolbar">
+            <button class="btn" data-role="toggleOnline">Basculer en ligne / hors-ligne</button>
+            <button class="btn primary" data-role="syncUp">Sync → Central</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="grid-2">
+            <div class="ctl">
+              <label>Employé</label>
+              <select data-role="employeeSelect"></select>
+            </div>
+            <div class="ctl">
+              <label>Modèle de contrat (catalogue central)</label>
+              <select data-role="contractModel"></select>
+              <button class="btn" data-role="applyModel">Appliquer au contrat</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Bulletins — Variables mensuelles</h3>
+            <div class="grid-3">
+              <div class="ctl"><label>Type</label>
+                <select data-role="varType">
+                  <option value="ABSNP">Absence non payée (jours)</option>
+                  <option value="HS">Heures supplémentaires (h)</option>
+                  <option value="FRAIS">Remboursement frais (€)</option>
+                </select>
+              </div>
+              <div class="ctl"><label>Valeur</label>
+                <input type="number" step="0.5" placeholder="ex: 2" data-role="varValue" />
+              </div>
+              <div class="ctl"><label>&nbsp;</label>
+                <button class="btn" data-role="addVar">Ajouter la variable</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Employés — Gestion</h3>
+            <div class="grid-2">
+              <div class="ctl"><label>Changer adresse</label>
+                <input type="text" placeholder="ex: 34 av. Montmartre" data-role="newAddress" />
+                <button class="btn" data-role="changeAddress">Mettre à jour</button>
+              </div>
+              <div class="ctl"><label>Affecter au site</label>
+                <select data-role="assignSite">
+                  <option value="A">Site A</option>
+                  <option value="B">Site B</option>
+                </select>
+                <button class="btn" data-role="doAssign">Affecter</button>
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="ctl"><label>Terminer contrat (date)</label>
+                <input type="date" data-role="endDate" />
+                <button class="btn" data-role="endContract">Proposer fin</button>
+              </div>
+              <div class="ctl"><label>Amender contrat (grade / indemnités)</label>
+                <div class="grid-3">
+                  <input class="ctl" data-role="grade" type="number" min="1" max="5" placeholder="grade" />
+                  <input class="ctl" data-role="allowance" type="number" step="10" placeholder="indemnités (€)" />
+                  <button class="btn" data-role="amendContract">Amender</button>
+                </div>
+                <span class="note">S1 : action désactivée (central seul). S2 : brouillon local, arbitrage à la synchro.</span>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="grid-2">
+              <div class="ctl"><label>Créer un employé (nom)</label>
+                <input type="text" data-role="newEmpName" placeholder="Nom Prénom" />
+                <button class="btn" data-role="createEmp">Créer</button>
+              </div>
+              <div class="ctl"><label>Clôture locale (brouillon)</label>
+                <button class="btn" data-role="localClose">Pré-clôturer la période</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Journal Site B</h3>
+            <div class="log" data-role="log"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // ======= Données initiales (central) =======
+    const initial = () => ({
+      strategy: 'S1',
+      period: '2025-09',
+      models: {
+        A: { id:'A', name:'Modèle A', version:1, overtimeRate:25, salaryGrid:{1:1800,2:2000,3:2300} },
+        B: { id:'B', name:'Modèle B', version:1, overtimeRate:30, salaryGrid:{1:1700,2:1950,3:2200} },
+      },
+      employees: {
+        E1: { id:'E1', name:'Alice Martin', site:'A', personal:{ address:'Lyon', rib:'FR76-***-A' },
+              contract:{ model:'A', grade:2, allowance:200, endDate:null } },
+        E2: { id:'E2', name:'Bruno Dupont', site:'B', personal:{ address:'Villeurbanne', rib:'FR76-***-B' },
+              contract:{ model:'B', grade:1, allowance:100, endDate:null } },
+      },
+      variables: { /* empId -> period -> [ {type, value} ] */ },
+      centralLog: [],
+      sites: {
+        A: { online:true, local:{}, modelsCache:{}, changes:[], log:[], localClosed:false },
+        B: { online:true, local:{}, modelsCache:{}, changes:[], log:[], localClosed:false },
+      }
+    });
+
+    let db = initial();
+
+    // Deep clone utility
+    const deep = (o)=> JSON.parse(JSON.stringify(o));
+
+    function initSitesFromCentral(){
+      ['A','B'].forEach(sid => {
+        db.sites[sid].local = Object.fromEntries(Object.entries(db.employees).filter(([id,e])=> e.site===sid));
+        db.sites[sid].modelsCache = deep(db.models);
+        db.sites[sid].changes = [];
+        db.sites[sid].localClosed = false;
+      });
+    }
+
+    // Setup periods
+    const periodSel = document.getElementById('period');
+    const kpiPeriod = document.getElementById('kpiPeriod');
+    const months = ['01','02','03','04','05','06','07','08','09'];
+    months.forEach(m=>{
+      const opt = document.createElement('option');
+      opt.value = `2025-${m}`; opt.textContent = `2025-${m}`; periodSel.appendChild(opt);
+    });
+    periodSel.value = db.period; kpiPeriod.textContent = db.period;
+    periodSel.addEventListener('change',()=>{ db.period = periodSel.value; kpiPeriod.textContent = db.period; logCentral(`📅 Période active = ${db.period}`); });
+
+    // Strategy selector
+    const strategySel = document.getElementById('strategy');
+    const kpiStrategy = document.getElementById('kpiStrategy');
+    strategySel.value = db.strategy; kpiStrategy.textContent = db.strategy;
+    strategySel.addEventListener('change',()=>{ db.strategy = strategySel.value; kpiStrategy.textContent = db.strategy; refreshPanels(); logCentral(`🔁 Stratégie basculée sur ${db.strategy}`); });
+
+    // Reset demo
+    document.getElementById('reset').addEventListener('click',()=>{ db = initial(); initSitesFromCentral(); hydrateUI(); logCentral('♻️ Réinitialisation de la démo.'); });
+
+    // ======= Sélecteurs de panneaux =======
+    const sitePanels = { A: document.getElementById('siteA'), B: document.getElementById('siteB') };
+    const centralPanel = document.getElementById('central');
+
+    function sel(panel, qs){ return panel.querySelector(qs); }
+    function logTo(el, msg){ const p = document.createElement('p'); p.innerHTML = time() + ' ' + msg; el.prepend(p); }
+    function time(){ const d=new Date(); return `<span class="muted">[${d.toLocaleTimeString()}]</span>` }
+
+    function logSite(siteId, msg){ logTo(sel(sitePanels[siteId],'[data-role="log"]'), msg); db.sites[siteId].log.push(msg); }
+    function logCentral(msg){ logTo(document.getElementById('centralLog'), msg); db.centralLog.push(msg); }
+
+    function hydrateUI(){
+      // Central employees list
+      const centralEmpSel = document.getElementById('centralEmp'); centralEmpSel.innerHTML='';
+      Object.values(db.employees).forEach(e=>{ const o=document.createElement('option'); o.value=e.id; o.textContent=`${e.name} (${e.site})`; centralEmpSel.appendChild(o); });
+
+      // Central model editor
+      const modelPick = document.getElementById('modelPick'); modelPick.innerHTML='';
+      Object.values(db.models).forEach(m=>{ const o=document.createElement('option'); o.value=m.id; o.textContent=`${m.name} v${m.version}`; modelPick.appendChild(o); });
+      fillModelEditor();
+
+      // Sites employees & models
+      ['A','B'].forEach(sid=>{
+        const panel = sitePanels[sid];
+        const empSel = sel(panel,'[data-role="employeeSelect"]'); empSel.innerHTML='';
+        Object.values(db.sites[sid].local).forEach(e=>{ const o=document.createElement('option'); o.value=e.id; o.textContent=e.name; empSel.appendChild(o); });
+
+        const modelSel = sel(panel,'[data-role="contractModel"]'); modelSel.innerHTML='';
+        Object.values(db.sites[sid].modelsCache).forEach(m=>{ const o=document.createElement('option'); o.value=m.id; o.textContent=`${m.name} v${m.version}`; modelSel.appendChild(o); });
+
+        updateButtonsForSite(sid);
+      });
+    }
+
+    function fillModelEditor(){
+      const selId = document.getElementById('modelPick').value; const m=db.models[selId];
+      document.getElementById('modelOT').value = m.overtimeRate;
+      document.getElementById('modelG2').value = m.salaryGrid[2];
+    }
+
+    // ======= Boutons Central =======
+    document.getElementById('modelPick').addEventListener('change', fillModelEditor);
+    document.getElementById('saveModel').addEventListener('click',()=>{
+      const id = document.getElementById('modelPick').value;
+      const m = db.models[id];
+      const newOT = parseFloat(document.getElementById('modelOT').value||m.overtimeRate);
+      const newG2 = parseInt(document.getElementById('modelG2').value||m.salaryGrid[2]);
+      m.overtimeRate = newOT; m.salaryGrid[2]=newG2; m.version++;
+      logCentral(`📚 Modèle <b>${m.name}</b> mis à jour → v${m.version} (HS=${m.overtimeRate}%, G2=${m.salaryGrid[2]}€).`);
+      // push to sites cache at prochaine synchro (ils gardent leur cache actuel d'ici là)
+      hydrateUI();
+    });
+
+    // Central amend contract
+    document.getElementById('centralAmend').addEventListener('click',()=>{
+      const id = document.getElementById('centralEmp').value; const e=db.employees[id]; if(!e) return;
+      const g = parseInt(document.getElementById('centralGrade').value||e.contract.grade);
+      const a = parseInt(document.getElementById('centralAllowance').value||e.contract.allowance);
+      const old = deep(e.contract);
+      e.contract.grade=g; e.contract.allowance=a;
+      logCentral(`✏️ Amendement central pour <b>${e.name}</b> : grade ${old.grade}→${g}, indemnités ${old.allowance}→${a}.`);
+    });
+
+    // Close period (central)
+    document.getElementById('closePeriod').addEventListener('click',()=>{
+      const aOk = db.sites.A.online ? 'ok' : 'ok'; // le central peut sceller même si sites hors-ligne; on log selon stratégie
+      const bOk = db.sites.B.online ? 'ok' : 'ok';
+      if(db.strategy==='S1'){
+        logCentral(`🔒 Clôture ${db.period} scellée (S1). Règle: synchro obligatoire avant clôture → vérifier variables.`);
+      } else {
+        logCentral(`🔒 Clôture ${db.period} scellée (S2). Règle: pré-contrôles locaux + arbitrages appliqués.`);
+      }
+    });
+
+    // Sync all
+    document.getElementById('syncAll').addEventListener('click',()=>{
+      syncSite('A'); syncSite('B'); logCentral('🔗 Sync global effectué.');
+    });
+
+    // ======= Boutons Sites =======
+    function bindSite(panelId){
+      const panel = sitePanels[panelId];
+      sel(panel,'[data-role="toggleOnline"]').addEventListener('click',()=>{
+        db.sites[panelId].online = !db.sites[panelId].online;
+        updateButtonsForSite(panelId);
+        const st = db.sites[panelId].online? 'En ligne' : 'Hors-ligne';
+        logSite(panelId,`🌐 Statut: <b>${st}</b>.`);
+      });
+
+      sel(panel,'[data-role="syncUp"]').addEventListener('click',()=>{
+        syncSite(panelId);
+      });
+
+      sel(panel,'[data-role="applyModel"]').addEventListener('click',()=>{
+        const empId = sel(panel,'[data-role="employeeSelect"]').value; const e=db.sites[panelId].local[empId]; if(!e) return;
+        const mdl = sel(panel,'[data-role="contractModel"]').value;
+        e.contract = e.contract || {}; e.contract.model = mdl;
+        db.sites[panelId].changes.push({kind:'contractModel', empId, model:mdl});
+        logSite(panelId,`📑 Modèle de contrat appliqué à <b>${e.name}</b> → <i>${mdl}</i> (sera validé au central).`);
+      });
+
+      sel(panel,'[data-role="addVar"]').addEventListener('click',()=>{
+        const empId = sel(panel,'[data-role="employeeSelect"]').value; const e=db.sites[panelId].local[empId]; if(!e) return;
+        const t = sel(panel,'[data-role="varType"]').value; const v = parseFloat(sel(panel,'[data-role="varValue"]').value||0);
+        if(!v){ logSite(panelId,'⚠️ Valeur manquante.'); return; }
+        db.sites[panelId].changes.push({kind:'variable', empId, period:db.period, type:t, value:v});
+        logSite(panelId,`➕ Variable <b>${t}</b>=${v} ajoutée pour <b>${e.name}</b> (${db.period}).`);
+      });
+
+      sel(panel,'[data-role="changeAddress"]').addEventListener('click',()=>{
+        const empId = sel(panel,'[data-role="employeeSelect"]').value; const e=db.sites[panelId].local[empId]; if(!e) return;
+        const addr = sel(panel,'[data-role="newAddress"]').value.trim(); if(!addr){ logSite(panelId,'⚠️ Adresse manquante.'); return; }
+        db.sites[panelId].changes.push({kind:'personal', field:'address', empId, value:addr});
+        (e.personal||(e.personal={})).address = addr;
+        logSite(panelId,`🏠 Adresse de <b>${e.name}</b> mise à jour localement → "${addr}".`);
+      });
+
+      sel(panel,'[data-role="doAssign"]').addEventListener('click',()=>{
+        const empId = sel(panel,'[data-role="employeeSelect"]').value; const e=db.sites[panelId].local[empId]; if(!e) return;
+        const to = sel(panel,'[data-role="assignSite"]').value;
+        db.sites[panelId].changes.push({kind:'assign', empId, to});
+        e.site = to;
+        logSite(panelId,`🔁 Affectation de <b>${e.name}</b> → site ${to} (validation centrale à la synchro).`);
+      });
+
+      sel(panel,'[data-role="endContract"]').addEventListener('click',()=>{
+        const empId = sel(panel,'[data-role="employeeSelect"]').value; const e=db.sites[panelId].local[empId]; if(!e) return;
+        const d = sel(panel,'[data-role="endDate"]').value; if(!d){ logSite(panelId,'⚠️ Date manquante.'); return; }
+        db.sites[panelId].changes.push({kind:'end', empId, date:d});
+        e.contract = e.contract || {}; e.contract.endDate = d;
+        logSite(panelId,`🟥 Proposition de fin pour <b>${e.name}</b> au ${d} (sera tranché au central).`);
+      });
+
+      sel(panel,'[data-role="amendContract"]').addEventListener('click',()=>{
+        if(db.strategy==='S1'){ logSite(panelId,'🚫 Amendement de contrat non autorisé côté site en S1.'); return; }
+        const empId = sel(panel,'[data-role="employeeSelect"]').value; const e=db.sites[panelId].local[empId]; if(!e) return;
+        const g = parseInt(sel(panel,'[data-role="grade"]').value||e.contract?.grade||2);
+        const a = parseInt(sel(panel,'[data-role="allowance"]').value||e.contract?.allowance||0);
+        db.sites[panelId].changes.push({kind:'amend', empId, grade:g, allowance:a});
+        e.contract = e.contract || {}; e.contract.grade=g; e.contract.allowance=a;
+        logSite(panelId,`✏️ Amendement local (brouillon) pour <b>${e.name}</b> : grade→${g}, indemnités→${a}.`);
+      });
+
+      sel(panel,'[data-role="createEmp"]').addEventListener('click',()=>{
+        const name = sel(panel,'[data-role="newEmpName"]').value.trim(); if(!name){ logSite(panelId,'⚠️ Nom manquant.'); return; }
+        const tmpId = 'TMP'+Math.floor(Math.random()*10000);
+        db.sites[panelId].local[tmpId] = { id:tmpId, name, site:panelId, personal:{ address:'—', rib:'—' }, contract:{ model:'A', grade:1, allowance:0, endDate:null } };
+        db.sites[panelId].changes.push({kind:'create', tempId:tmpId});
+        hydrateUI();
+        logSite(panelId,`🆕 Employé <b>${name}</b> créé localement (${tmpId}). Sera enregistré au central à la synchro.`);
+      });
+
+      sel(panel,'[data-role="localClose"]').addEventListener('click',()=>{
+        db.sites[panelId].localClosed = true;
+        logSite(panelId,`🟦 Pré-clôture locale marquée pour ${db.period}.`);
+      });
+    }
+
+    // Attach handlers for both sites
+    bindSite('A'); bindSite('B');
+
+    // Update buttons/disabled states per site based on online + strategy
+    function updateButtonsForSite(siteId){
+      const panel = sitePanels[siteId];
+      const online = db.sites[siteId].online;
+      sel(panel,'[data-role="statusBadge"]').className = 'badge ' + (online?'online':'offline');
+      sel(panel,'[data-role="statusBadge"]').textContent = online ? 'En ligne' : 'Hors-ligne';
+
+      // Define which actions require online strictly
+      const requiresOnlineRoles = ['syncUp']; // sync requires online
+      requiresOnlineRoles.forEach(r=>{ const b= sel(panel,`[data-role="${r}"]`); if(b) b.disabled = !online; });
+
+      // Amend contract disabled in S1 on sites
+      const amendBtn = sel(panel,'[data-role="amendContract"]');
+      if(amendBtn){ amendBtn.disabled = (db.strategy==='S1'); }
+
+      // Other actions allowed offline (they create local changes)
+    }
+
+    // ======= Synchro =======
+    function ensureVars(empId){ if(!db.variables[empId]) db.variables[empId] = {}; if(!db.variables[empId][db.period]) db.variables[empId][db.period]=[]; }
+
+    function upsertVar(empId, type, value){
+      ensureVars(empId);
+      // Merge by type per period (keep last from site in S1; union in S2)
+      const list = db.variables[empId][db.period];
+      const idx = list.findIndex(x=> x.type===type);
+      if(db.strategy==='S1'){
+        if(idx>=0) list[idx].value = value; else list.push({type,value});
+      } else { // S2 → fusion: si même type existe, on garde somme indicative
+        if(idx>=0) list[idx].value = list[idx].value + value; else list.push({type,value});
+      }
+    }
+
+    function syncSite(siteId){
+      const site = db.sites[siteId];
+      if(!site.online){ logSite(siteId,'🚫 Sync impossible hors-ligne.'); return; }
+      const changes = site.changes.splice(0, site.changes.length);
+      if(changes.length===0){ logSite(siteId,'ℹ️ Rien à synchroniser.'); return; }
+
+      logSite(siteId,`🔄 Envoi ${changes.length} changement(s) au central…`);
+
+      for(const ch of changes){
+        const empId = ch.empId;
+        // Resolve employee at central (including creates)
+        let centralEmp = db.employees[empId];
+        if(ch.kind==='create'){
+          // Create new employee at central
+          const temp = site.local[ch.tempId];
+          const newId = 'E' + (Object.keys(db.employees).length+1);
+          temp.id = newId; db.employees[newId]= deep(temp);
+          // replace temp in site local
+          delete site.local[ch.tempId]; site.local[newId] = deep(temp);
+          logCentral(`🆕 Employé <b>${temp.name}</b> enregistré depuis Site ${siteId} → id ${newId}.`);
+          logSite(siteId,`✅ Création centralisée de <b>${temp.name}</b> (${newId}).`);
+          continue;
+        }
+        if(!centralEmp){ logSite(siteId,`⚠️ Employé inconnu au central: ${empId}. Ignoré.`); continue; }
+
+        switch(ch.kind){
+          case 'variable':{
+            upsertVar(empId, ch.type, ch.value);
+            const rule = db.strategy==='S1' ? 'fusion par type (site prévaut)' : 'auto-fusion (addition/union)';
+            logCentral(`🧾 Variables ${db.period} mises à jour pour <b>${centralEmp.name}</b> (${ch.type}=${ch.value}) — règle ${db.strategy}: ${rule}.`);
+            logSite(siteId,`✅ Variable envoyée & intégrée au central.`);
+            break;
+          }
+          case 'personal':{
+            const fld = ch.field; const newV = ch.value; const oldV = centralEmp.personal?.[fld];
+            centralEmp.personal = centralEmp.personal||{}; centralEmp.personal[fld]=newV;
+            logCentral(`👤 Info perso (<i>${fld}</i>) de <b>${centralEmp.name}</b> : "${oldV}" → "${newV}" (source Site ${siteId}).`);
+            logSite(siteId,'✅ Info personnelle synchronisée au central.');
+            break;
+          }
+          case 'assign':{
+            const from = centralEmp.site; const to = ch.to;
+            centralEmp.site = to;
+            logCentral(`🏷️ Affectation <b>${centralEmp.name}</b> : ${from} → ${to} (validée).`);
+            logSite(siteId,`✅ Affectation validée par le central (${from}→${to}).`);
+            break;
+          }
+          case 'end':{
+            const proposed = ch.date; const existing = centralEmp.contract?.endDate;
+            if(db.strategy==='S1'){
+              if(existing && existing!==proposed){
+                logCentral(`⚖️ Conflit fin contrat <b>${centralEmp.name}</b>: central=${existing}, site=${proposed} → <b>central prioritaire</b> (S1).`);
+                logSite(siteId,'❌ Conflit fin contrat — central prioritaire (S1).');
+              } else { centralEmp.contract.endDate = proposed; logCentral(`✅ Fin de contrat actée pour <b>${centralEmp.name}</b> au ${proposed}.`); logSite(siteId,'✅ Proposition acceptée par le central.'); }
+            } else { // S2
+              if(existing && existing!==proposed){
+                logCentral(`🟨 Conflit fin contrat <b>${centralEmp.name}</b> → médiation simulée: <b>date centrale conservée</b>.`);
+                logSite(siteId,'🟨 Médiation: la date centrale est conservée.');
+              } else { centralEmp.contract.endDate = proposed; logCentral(`✅ Fin de contrat actée (S2) pour <b>${centralEmp.name}</b> au ${proposed}.`); logSite(siteId,'✅ Acceptée (S2).'); }
+            }
+            break;
+          }
+          case 'amend':{
+            if(db.strategy==='S1'){
+              logSite(siteId,'🚫 Amendement ignoré (S1 central seul).');
+              logCentral(`↩️ Amendement site ignoré (S1).`);
+            } else {
+              // S2 — central prioritaire sur salaire (grade/allowance) si conflit
+              const old = deep(centralEmp.contract);
+              const conflict = (old.grade!==ch.grade || old.allowance!==ch.allowance);
+              if(conflict){
+                // arbitrage: si central a modifié récemment on garde central; sinon on prend site
+                // (simulation simple: si diff → central gagne pour grade; allowance prend site)
+                centralEmp.contract.grade = old.grade; // central prioritaire pour grade
+                centralEmp.contract.allowance = ch.allowance; // site accepté pour indemnités
+                logCentral(`🧮 Conflit amendement <b>${centralEmp.name}</b> (S2): grade central conservé (${old.grade}), indemnités site appliquées (${ch.allowance}).`);
+                logSite(siteId,'🟨 Médiation: grade central gardé, indemnités locales appliquées.');
+              } else {
+                centralEmp.contract.grade = ch.grade; centralEmp.contract.allowance = ch.allowance;
+                logCentral(`✅ Amendement site appliqué à <b>${centralEmp.name}</b> (S2).`);
+                logSite(siteId,'✅ Amendement accepté (S2).');
+              }
+            }
+            break;
+          }
+          case 'contractModel':{
+            // Site a choisi un modèle: central applique la dernière version
+            const chosen = ch.model; const centralModel = db.models[chosen];
+            centralEmp.contract.model = centralModel.id;
+            logCentral(`📦 Modèle <b>${centralModel.name} v${centralModel.version}</b> appliqué à <b>${centralEmp.name}</b> (source Site ${siteId}).`);
+            logSite(siteId,'✅ Modèle validé par le central (version la plus récente).');
+            break;
+          }
+        }
+      }
+
+      // Après sync: rafraîchir caches sites depuis le central
+      initSitesFromCentral(); hydrateUI();
+      logSite(siteId,'🔁 Cache local rafraîchi depuis le central.');
+    }
+
+    // ======= Boot =======
+    initSitesFromCentral(); hydrateUI();
+    logCentral('🚀 Démarrage de la démo. Modifie des données en local puis synchronise.');
+  </script>
+</body>
+</html>
