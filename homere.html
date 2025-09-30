@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIRH MSF — Prototype (Standalone)</title>
+  <style>
+    :root{
+      --msf-red:#E53935; /* accent ⛑️ */
+      --bg:#ffffff;
+      --text:#1f2937; /* gray-800 */
+      --muted:#6b7280; /* gray-500 */
+      --muted-2:#9ca3af; /* gray-400 */
+      --line:#e5e7eb; /* gray-200 */
+      --chip:#fef2f2; /* red-50 */
+      --ok:#16a34a; /* green-600 */
+      --warn:#fb923c; /* orange-400 */
+      --card:#fafafa;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif;background:var(--bg);color:var(--text)}
+    header{
+      position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
+    }
+    .topbar{
+      display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px;
+    }
+    .topbar .left, .topbar .right{display:flex;gap:12px;align-items:center}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:700}
+    .brand .logo{width:28px;height:28px;display:inline-grid;place-items:center;border-radius:8px;background:var(--msf-red);color:#fff;font-size:16px}
+    select, input[type="text"], input[type="number"], textarea{
+      border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;color:var(--text);
+      outline:none;box-shadow:none;font-size:14px
+    }
+    button{border:1px solid var(--msf-red);background:var(--msf-red);color:#fff;border-radius:12px;padding:8px 12px;font-weight:600;cursor:pointer}
+    button.ghost{background:#fff;color:var(--msf-red)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .tabs{display:flex;gap:8px;border-bottom:1px solid var(--line);padding:8px 16px}
+    .tab{border:none;background:transparent;padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;color:var(--muted);font-weight:600}
+    .tab.active{color:var(--msf-red);border-color:var(--msf-red)}
+
+    .layout{
+      display:grid;grid-template-columns:360px 1fr;gap:0;height:calc(100vh - 110px);
+    }
+    .panel-left{border-right:1px solid var(--line);overflow:auto;background:#fff}
+    .panel-right{overflow:auto;background:#fff}
+
+    .list-header{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:2}
+    .list{padding:8px 8px}
+    .row{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:8px 10px;margin:8px;background:var(--card)}
+    .row:hover{outline:2px solid #fce7e7}
+    .avatar{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--chip)}
+    .row .title{font-weight:700}
+    .row .meta{font-size:12px;color:var(--muted)}
+    .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);color:var(--msf-red);border:1px solid #fde2e2;padding:2px 8px;border-radius:999px;font-size:12px}
+
+    .detail{padding:16px 24px;max-width:1100px}
+    .detail h2{margin:8px 0 4px 0}
+    .section{border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:14px 0;background:#fff}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .kv{display:grid;grid-template-columns:180px 1fr;gap:8px;align-items:center;font-size:14px}
+    .kv label{color:var(--muted)}
+
+    .table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    .table th{font-size:12px;color:var(--muted);text-align:left;padding:0 10px}
+    .table td{background:var(--card);border:1px solid var(--line);padding:10px;border-radius:10px}
+
+    .inline-actions{display:flex;gap:8px;align-items:center}
+    .badge{padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+    .badge.ok{color:#065f46;background:#ecfdf5;border-color:#d1fae5}
+    .badge.warn{color:#92400e;background:#fffbeb;border-color:#fde68a}
+
+    .code{font-family:ui-monospace, Menlo, Consolas, monospace; font-size:12px;background:#f8fafc;padding:8px;border-radius:8px;border:1px solid var(--line);white-space:pre-wrap}
+
+    .footer{padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);display:flex;justify-content:space-between}
+    .pill{background:#f3f4f6;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;color:#111827}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div class="left">
+        <div class="brand"><span class="logo">⛑️</span> SIRH MSF — Prototype</div>
+        <div class="kv"><label>🏥 Site</label>
+          <select id="siteSelect"></select>
+        </div>
+        <div class="kv"><label>🧾 Période</label>
+          <select id="periodSelect"></select>
+        </div>
+      </div>
+      <div class="right">
+        <input id="globalSearch" type="text" placeholder="Rechercher (nom, poste, contrat)…" />
+        <button id="validatePeriodBtn">Valider la période</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="employees">🧑‍⚕️ Employés</button>
+      <button class="tab" data-tab="contracts">📝 Contrats</button>
+      <button class="tab" data-tab="config">⚙️ Configuration</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel-left">
+      <div class="list-header">
+        <span id="listTitle" style="font-weight:700">Employés</span>
+        <span class="badge" id="listCount">0</span>
+        <span class="pill" id="contextPill">—</span>
+      </div>
+      <div id="list" class="list"></div>
+    </aside>
+    <section class="panel-right">
+      <div id="detail" class="detail">
+        <h2>Bienvenue 👋</h2>
+        <p>Sélectionnez un élément dans la liste de gauche pour afficher les détails ici.
+        </p>
+        <div class="section">
+          <p class="code">Raccourcis :
+- Cliquer sur un employé → ouvre sa fiche (onglets internes).
+- Depuis un contrat → naviguer vers l’employé et voir les bulletins.
+- Onglet Configuration → éditer le modèle de bulletin du site, prévisualiser et activer.
+- Bouton « Valider la période » → génère/verrouille les bulletins de la période & du site sélectionnés.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="footer">
+    <div>Thème clair • Accent MSF ⛑️ • Démo FR 🇫🇷 & CH 🇨🇭 • Périodes existantes: Jan–Mar 2025</div>
+    <div id="stats"></div>
+  </div>
+
+  <script>
+  /*****************************
+   * Données seed & utilitaires *
+   *****************************/
+  const COUNTRIES = [
+    { code: 'FR', name: 'France', currency: 'EUR', sites: ['Paris','Lyon','Marseille'], rates: { social: 0.22, tax: 0.12 }, housingCap: 800, housingPct: 0.20 },
+    { code: 'CH', name: 'Suisse', currency: 'CHF', sites: ['Genève','Lausanne','Zurich'], rates: { social: 0.15, tax: 0.10 }, housingCap: 1200, housingPct: 0.25 }
+  ];
+  const PERIODS = [ '2025-01', '2025-02', '2025-03', '2025-04' ];
+  const PERIOD_LABEL = p => new Date(p+'-01').toLocaleDateString('fr-FR',{ month:'long', year:'numeric' });
+  const FLAG = countryCode => countryCode==='FR'?'🇫🇷':'🇨🇭';
+  const rand = (min, max) => Math.floor(Math.random()*(max-min+1))+min;
+  const pick = arr => arr[rand(0, arr.length-1)];
+  const uid = (p='id') => p+Math.random().toString(36).slice(2,8);
+
+  const ROLES = [ 'Infirmier·e', 'Médecin', 'Logisticien·ne', 'Admin RH', 'Pharmacien·ne', 'Tech WASH', 'Sage-femme' ];
+  const FIRSTNAMES = ['Aïcha','Marc','Sofia','Luca','Fatoumata','Jonas','Nadia','Paul','Théo','Emma','Noah','Lea','Lucas','Mila','Ethan','Camille','Hugo','Zoé','Chloé','Léna'];
+  const LASTNAMES = ['Diallo','Nguyen','Ben Youssef','Rossi','Traoré','Meier','Martin','Bernard','Dubois','Moreau','Petit','Robert','Richard','Durand','Leroy','Roux'];
+
+  // Grilles simplifiées par pays+role (base mensuelle brute de référence)
+  const GRIDS = {
+    FR: {
+      version: 'FR-Std-v1',
+      baseByRole: {
+        'Infirmier·e': 2200,
+        'Médecin': 4000,
+        'Logisticien·ne': 2500,
+        'Admin RH': 2300,
+        'Pharmacien·ne': 3000,
+        'Tech WASH': 2400,
+        'Sage-femme': 2600,
+      }
+    },
+    CH: {
+      version: 'CH-Std-v1',
+      baseByRole: {
+        'Infirmier·e': 5000,
+        'Médecin': 9000,
+        'Logisticien·ne': 5500,
+        'Admin RH': 5200,
+        'Pharmacien·ne': 6500,
+        'Tech WASH': 5200,
+        'Sage-femme': 5600,
+      }
+    }
+  };
+
+  // Modèles de bulletin par pays (éditables au niveau du site via l’onglet Configuration)
+  const DEFAULT_MODELS = {
+    FR: {
+      name: 'FR-Std-v2',
+      appliesTo: 'pays',
+      variables: {
+        indemn_housing_pct: 0.20,
+        housing_cap: 800,
+        rate_social: 0.22,
+        rate_tax: 0.12
+      },
+      lines: [
+        { id:'base', section:'gains', label:'Salaire de base', formula:'base_salary' },
+        { id:'housing', section:'gains', label:'Indemnité logement', formula:'min(indemn_housing_pct * base_salary, housing_cap)' },
+        { id:'hardship', section:'gains', label:'Indemnité hardship', formula:'hardship' },
+        { id:'mission', section:'gains', label:'Frais de mission', formula:'mission_expenses' },
+        { id:'gross', section:'summary', label:'Total gains', formula:'base + housing + hardship + mission' },
+        { id:'social', section:'deductions', label:'Cotisations sociales', formula:'rate_social * gross' },
+        { id:'tax', section:'deductions', label:'Impôt', formula:'rate_tax * max(gross - social,0)' },
+        { id:'net', section:'summary', label:'Net à payer', formula:'gross - social - tax' }
+      ]
+    },
+    CH: {
+      name: 'CH-Std-v1',
+      appliesTo: 'pays',
+      variables: {
+        indemn_housing_pct: 0.25,
+        housing_cap: 1200,
+        rate_social: 0.15,
+        rate_tax: 0.10
+      },
+      lines: [
+        { id:'base', section:'gains', label:'Salaire de base', formula:'base_salary' },
+        { id:'housing', section:'gains', label:'Indemnité logement', formula:'min(indemn_housing_pct * base_salary, housing_cap)' },
+        { id:'hardship', section:'gains', label:'Indemnité hardship', formula:'hardship' },
+        { id:'mission', section:'gains', label:'Frais de mission', formula:'mission_expenses' },
+        { id:'gross', section:'summary', label:'Total gains', formula:'base + housing + hardship + mission' },
+        { id:'social', section:'deductions', label:'Cotisations sociales', formula:'rate_social * gross' },
+        { id:'tax', section:'deductions', label:'Impôt', formula:'rate_tax * max(gross - social,0)' },
+        { id:'net', section:'summary', label:'Net à payer', formula:'gross - social - tax' }
+      ]
+    }
+  };
+
+  // Mini moteur de formules — autorise seulement les symboles prédéfinis
+  function evalFormula(formula, scope) {
+    const allowedKeys = Object.keys(scope);
+    const args = [...allowedKeys, 'min', 'max'];
+    const body = `return (${formula});`;
+    try{
+      const fn = new Function(...args, body);
+      return fn(...allowedKeys.map(k=>scope[k]), Math.min, Math.max);
+    }catch(e){
+      console.warn('Erreur formule', formula, e);
+      return NaN;
+    }
+  }
+
+  // Génération de 100 employés + 1 contrat actif chacun
+  const DB = {
+    employees: [],
+    contracts: [],
+    payroll: {}, // key: period -> { bulletinId: bulletin }
+    configBySite: {}, // siteKey -> model (variables + lines)
+    variablesByContractPeriod: {} // key `${contractId}|${period}` -> { mission_expenses: number, notes: string }
+  };
+
+  function genSeed(){
+    let idCounter = 1;
+    COUNTRIES.forEach(c=>{
+      c.sites.forEach(site=>{
+        const siteKey = `${c.code}:${site}`;
+        // Par défaut : modèle du pays
+        DB.configBySite[siteKey] = JSON.parse(JSON.stringify(DEFAULT_MODELS[c.code]));
+      });
+    });
+
+    for(let i=0;i<100;i++){
+      const country = pick(COUNTRIES);
+      const site = pick(country.sites);
+      const role = pick(ROLES);
+      const fn = pick(FIRSTNAMES), ln = pick(LASTNAMES);
+      const emp = {
+        id: 'E'+String(idCounter++).padStart(3,'0'),
+        name: `${fn} ${ln}`,
+        role,
+        country: country.code,
+        site,
+        email: `${fn.toLowerCase().normalize('NFD').replace(/[^a-z]/g,'')}.${ln.toLowerCase().replace(/[^a-z]/g,'')}@demo.msf` ,
+        phone: `+33 ${rand(100,999)} ${rand(100,999)} ${rand(100,999)}`,
+        status: 'Actif',
+        dependants: rand(0,3),
+        docsAlerts: Math.random()<0.15,
+      };
+      DB.employees.push(emp);
+
+      const grid = GRIDS[country.code];
+      const base = grid.baseByRole[role] || 2400;
+      const contract = {
+        id: 'C'+uid(),
+        employeeId: emp.id,
+        site,
+        country: country.code,
+        currency: country.currency,
+        role: role,
+        start: '2024-11-15',
+        end: null,
+        gridVersion: grid.version,
+        baseSalary: base,
+        indemn_housing_pct: COUNTRIES.find(x=>x.code===country.code).housingPct,
+        housing_cap: COUNTRIES.find(x=>x.code===country.code).housingCap,
+        hardship: Math.random()<0.3? rand(50,250) : 0,
+        status: 'Validé',
+        amendments: []
+      };
+      DB.contracts.push(contract);
+    }
+
+    // Générer bulletins pour Jan–Mar 2025 (validés)
+    ['2025-01','2025-02','2025-03'].forEach(p=>{
+      generateSitePeriodPayrollForAllSites(p, /*lock=*/true);
+    });
+  }
+
+  // Calcul d’un bulletin à partir d’un contrat, période et modèle
+  function computePayslip(contract, period, model, variables){
+    const country = COUNTRIES.find(c=>c.code===contract.country);
+    const base_salary = contract.baseSalary;
+    const mission_expenses = (variables?.mission_expenses) || 0;
+    const hardship = contract.hardship || 0;
+
+    // Scope initial disponible dans les formules
+    const scope = {
+      base_salary,
+      indemn_housing_pct: (typeof contract.indemn_housing_pct==='number'?contract.indemn_housing_pct:model.variables.indemn_housing_pct) ?? 0,
+      housing_cap: (typeof contract.housing_cap==='number'?contract.housing_cap:model.variables.housing_cap) ?? 0,
+      hardship,
+      mission_expenses,
+      rate_social: model.variables.rate_social,
+      rate_tax: model.variables.rate_tax,
+      // Les valeurs calculées apparaîtront ensuite (base, housing, gross, social, tax, net)
+    };
+
+    const linesOut = [];
+    const dict = {}; // id -> amount accessible dans formules suivantes
+
+    for(const line of model.lines){
+      const val = evalFormula(line.formula, { ...scope, ...dict });
+      const amount = isFinite(val) ? Math.round(val*100)/100 : 0;
+      dict[line.id] = amount;
+      linesOut.push({ id: line.id, label: line.label, section: line.section, amount });
+    }
+
+    const currency = contract.currency;
+    const totalGains = linesOut.filter(l=>l.section==='gains').reduce((a,b)=>a+b.amount,0);
+    const totalDeductions = linesOut.filter(l=>l.section==='deductions').reduce((a,b)=>a+b.amount,0);
+    const net = (dict.net ?? (totalGains - totalDeductions));
+
+    return {
+      id: 'P'+uid(),
+      employeeId: contract.employeeId,
+      contractId: contract.id,
+      country: contract.country,
+      site: contract.site,
+      period,
+      currency,
+      lines: linesOut,
+      totals: { gains: totalGains, deductions: totalDeductions, net },
+      status: 'Validé',
+      modelName: model.name,
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  function getSiteKey(country, site){ return `${country}:${site}`; }
+  function getModelForSite(country, site){ return DB.configBySite[getSiteKey(country,site)]; }
+
+  function generateSitePeriodPayrollForAllSites(period, lock){
+    DB.payroll[period] = DB.payroll[period] || {};
+    const bySiteContracts = {};
+    DB.contracts.forEach(c=>{
+      const key = getSiteKey(c.country,c.site);
+      (bySiteContracts[key] ||= []).push(c);
+    });
+
+    Object.entries(bySiteContracts).forEach(([siteKey, contracts])=>{
+      const [country, site] = siteKey.split(':');
+      const model = getModelForSite(country, site);
+      contracts.forEach(c=>{
+        const vKey = `${c.id}|${period}`;
+        const variables = DB.variablesByContractPeriod[vKey] || {};
+        const bulletin = computePayslip(c, period, model, variables);
+        bulletin.status = lock? 'Validé' : 'Calculé';
+        DB.payroll[period][bulletin.id] = bulletin;
+      });
+    });
+  }
+
+  function validateCurrentPeriod(){
+    const site = siteSelect.value; // e.g. FR:Paris
+    const period = periodSelect.value;
+    if(!site || !period) return;
+
+    // Supprimer tout calcul « Calculé » existant du site+période (ré-génération)
+    const [country, siteName] = site.split(':');
+    const model = getModelForSite(country, siteName);
+
+    // Génère pour tous les contrats du site
+    DB.payroll[period] ||= {};
+    DB.contracts.filter(c=>c.country===country && c.site===siteName && c.status==='Validé').forEach(c=>{
+      const variables = DB.variablesByContractPeriod[`${c.id}|${period}`] || {};
+      const slip = computePayslip(c, period, model, variables);
+      slip.status = 'Validé';
+      DB.payroll[period][slip.id] = slip;
+    });
+    alert(`✅ Période ${PERIOD_LABEL(period)} validée pour ${siteName} (${FLAG(country)}). Bulletins générés et verrouillés.`);
+    render();
+  }
+
+  /***********************
+   * RENDUS D’INTERFACE   *
+   ***********************/
+  const siteSelect = document.getElementById('siteSelect');
+  const periodSelect = document.getElementById('periodSelect');
+  const validateBtn = document.getElementById('validatePeriodBtn');
+  const listEl = document.getElementById('list');
+  const detailEl = document.getElementById('detail');
+  const tabs = Array.from(document.querySelectorAll('.tab'));
+  const listTitle = document.getElementById('listTitle');
+  const listCount = document.getElementById('listCount');
+  const contextPill = document.getElementById('contextPill');
+  const searchInput = document.getElementById('globalSearch');
+
+  let currentTab = 'employees';
+  let selection = null; // { type: 'employee'|'contract'|'config', id }
+
+  function initSelectors(){
+    // Sites
+    COUNTRIES.forEach(c=>{
+      c.sites.forEach(s=>{
+        const opt = document.createElement('option');
+        opt.value = `${c.code}:${s}`;
+        opt.textContent = `${FLAG(c.code)} ${s}`;
+        siteSelect.appendChild(opt);
+      })
+    });
+    siteSelect.value = 'FR:Paris';
+
+    // Périodes (Jan–Mar = validées, Avril = ouverte)
+    PERIODS.forEach(p=>{
+      const opt = document.createElement('option');
+      opt.value = p; opt.textContent = PERIOD_LABEL(p);
+      periodSelect.appendChild(opt);
+    });
+    periodSelect.value = '2025-04';
+  }
+
+  function setTab(tab){
+    currentTab = tab;
+    tabs.forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
+    if(tab==='employees') { listTitle.textContent='Employés'; renderEmployeesList(); showWelcomeIfNothing(); }
+    if(tab==='contracts') { listTitle.textContent='Contrats'; renderContractsList(); showWelcomeIfNothing(); }
+    if(tab==='config') { listTitle.textContent='Configuration'; renderConfigList(); renderConfigDetail(); }
+  }
+
+  function showWelcomeIfNothing(){
+    if(!selection){
+      detailEl.innerHTML = `<h2>Bienvenue 👋</h2><p>Sélectionnez un élément dans la liste de gauche pour afficher les détails ici.</p>`;
+    }
+  }
+
+  function render(){
+    contextPill.textContent = `${siteSelect.options[siteSelect.selectedIndex].textContent} • ${PERIOD_LABEL(periodSelect.value)}`;
+    if(currentTab==='employees') renderEmployeesList();
+    if(currentTab==='contracts') renderContractsList();
+    if(currentTab==='config') { renderConfigList(); renderConfigDetail(); }
+    updateStats();
+  }
+
+  function updateStats(){
+    const [cc, ss] = siteSelect.value.split(':');
+    const employees = DB.employees.filter(e=>e.country===cc && e.site===ss);
+    const contracts = DB.contracts.filter(c=>c.country===cc && c.site===ss);
+    const period = periodSelect.value;
+    const slips = Object.values(DB.payroll[period] || {}).filter(p=>p.country===cc && p.site===ss);
+    document.getElementById('stats').textContent = `${employees.length} employés • ${contracts.length} contrats • ${slips.length} bulletins (${PERIOD_LABEL(period)})`;
+  }
+
+  function renderEmployeesList(){
+    const [cc, ss] = siteSelect.value.split(':');
+    const q = searchInput.value?.toLowerCase() || '';
+    const rows = DB.employees
+      .filter(e=>e.country===cc && e.site===ss)
+      .filter(e=> e.name.toLowerCase().includes(q) || e.role.toLowerCase().includes(q))
+      .slice(0, 1000);
+
+    listEl.innerHTML = rows.map(e=>{
+      const contract = DB.contracts.find(c=>c.employeeId===e.id && !c.end);
+      const period = periodSelect.value;
+      const slips = Object.values(DB.payroll[period] || {}).filter(p=>p.employeeId===e.id);
+      const bulletinsBadge = `<span class="chip">🧾 ${slips.length}</span>`;
+      const status = e.docsAlerts? `<span class="badge warn">⚠️ docs</span>` : `<span class="badge ok">OK</span>`;
+      return `
+      <div class="row" data-type="employee" data-id="${e.id}">
+        <div class="avatar">🧑‍⚕️</div>
+        <div>
+          <div class="title">${e.name}</div>
+          <div class="meta">${e.role} • ${FLAG(e.country)} ${e.site} ${contract?`• Contrat ${contract.status}`:''}</div>
+        </div>
+        <div class="inline-actions">${bulletinsBadge}${status}</div>
+      </div>`;
+    }).join('');
+
+    listCount.textContent = rows.length;
+
+    Array.from(listEl.querySelectorAll('.row')).forEach(row=>{
+      row.addEventListener('click', ()=>{
+        selection = { type: row.dataset.type, id: row.dataset.id };
+        renderEmployeeDetail(selection.id);
+      });
+    });
+  }
+
+  function renderEmployeeDetail(empId){
+    const e = DB.employees.find(x=>x.id===empId);
+    const contract = DB.contracts.find(c=>c.employeeId===empId && !c.end);
+    const period = periodSelect.value;
+    const slips = Object.values(DB.payroll[period] || {}).filter(p=>p.employeeId===empId);
+
+    detailEl.innerHTML = `
+      <h2>🧑‍⚕️ ${e.name}</h2>
+      <div class="grid-3">
+        <div class="section kv"><label>Poste</label><div>${e.role}</div></div>
+        <div class="section kv"><label>Site</label><div>${FLAG(e.country)} ${e.site}</div></div>
+        <div class="section kv"><label>Statut</label><div>${e.status}</div></div>
+      </div>
+      <div class="grid-3">
+        <div class="section kv"><label>Email</label><div>${e.email}</div></div>
+        <div class="section kv"><label>Téléphone</label><div>${e.phone}</div></div>
+        <div class="section kv"><label>Dépendants</label><div>${e.dependants}</div></div>
+      </div>
+
+      <div class="section">
+        <h3>Contrat courant</h3>
+        ${contract ? renderContractCard(contract) : '<div class="meta">Aucun contrat actif</div>'}
+        ${contract ? `<div style="margin-top:8px"><button class="ghost" id="toContract">Ouvrir la fiche contrat</button></div>`:''}
+      </div>
+
+      <div class="section">
+        <h3>Variables mensuelles — ${PERIOD_LABEL(period)}</h3>
+        <div class="grid-3">
+          <div class="kv"><label>Frais de mission (${contract?.currency || ''})</label><input id="varMission" type="number" min="0" step="10" value="${getVariables(contract?.id, period).mission_expenses||0}"></div>
+          <div class="kv"><label>Notes</label><input id="varNotes" type="text" value="${getVariables(contract?.id, period).notes||''}"></div>
+        </div>
+        <div style="margin-top:8px">
+          <button id="saveVars">Enregistrer</button>
+          <button class="ghost" id="previewSlip">Prévisualiser bulletin</button>
+        </div>
+        <div id="previewArea"></div>
+      </div>
+
+      <div class="section">
+        <h3>Bulletins — ${PERIOD_LABEL(period)}</h3>
+        ${slips.length? slips.map(renderSlipLine).join('') : '<div class="meta">Aucun bulletin pour cette période.</div>'}
+      </div>
+    `;
+
+    if(contract){
+      document.getElementById('toContract').onclick = ()=>{
+        setTab('contracts');
+        selection = { type:'contract', id: contract.id };
+        renderContractsList();
+        renderContractDetail(contract.id);
+      };
+    }
+
+    document.getElementById('saveVars').onclick = ()=>{
+      const val = Number(document.getElementById('varMission').value||0);
+      const notes = document.getElementById('varNotes').value||'';
+      setVariables(contract.id, period, { mission_expenses: val, notes });
+      alert('✅ Variables enregistrées pour la période.');
+    };
+
+    document.getElementById('previewSlip').onclick = ()=>{
+      const model = getModelForSite(contract.country, contract.site);
+      const variables = getVariables(contract.id, period);
+      const slip = computePayslip(contract, period, model, variables);
+      document.getElementById('previewArea').innerHTML = renderSlipBlock(slip, true);
+    };
+  }
+
+  function renderSlipLine(slip){
+    return `<div class="row">
+      <div class="avatar">🧾</div>
+      <div>
+        <div class="title">${PERIOD_LABEL(slip.period)} — ${slip.currency} ${slip.totals.net.toLocaleString('fr-FR')}</div>
+        <div class="meta">Modèle: ${slip.modelName} • Gains ${slip.totals.gains.toLocaleString('fr-FR')} • Retenues ${slip.totals.deductions.toLocaleString('fr-FR')}</div>
+      </div>
+      <div class="inline-actions"><span class="badge ok">${slip.status}</span></div>
+    </div>`
+  }
+
+  function renderSlipBlock(slip, preview=false){
+    const gains = slip.lines.filter(l=>l.section==='gains');
+    const deds  = slip.lines.filter(l=>l.section==='deductions');
+    const sums  = slip.lines.filter(l=>l.section==='summary');
+    return `
+      <div class="section">
+        <div class="grid-3">
+          <div class="kv"><label>Période</label><div>${PERIOD_LABEL(slip.period)}</div></div>
+          <div class="kv"><label>Devise</label><div>${slip.currency}</div></div>
+          <div class="kv"><label>Statut</label><div>${preview? 'Aperçu' : slip.status}</div></div>
+        </div>
+        <div class="grid-2" style="margin-top:6px">
+          <div>
+            <h4>Gains</h4>
+            ${gains.map(l=>`<div class="kv"><label>${l.label}</label><div>${slip.currency} ${l.amount.toLocaleString('fr-FR')}</div></div>`).join('')}
+          </div>
+          <div>
+            <h4>Retenues</h4>
+            ${deds.map(l=>`<div class="kv"><label>${l.label}</label><div>− ${slip.currency} ${l.amount.toLocaleString('fr-FR')}</div></div>`).join('')}
+          </div>
+        </div>
+        <div class="section" style="margin:10px 0 0 0">
+          ${sums.map(l=>`<div class="kv"><label>${l.label}</label><div>${slip.currency} ${l.amount.toLocaleString('fr-FR')}</div></div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function getVariables(contractId, period){
+    return DB.variablesByContractPeriod[`${contractId}|${period}`] || {};
+  }
+  function setVariables(contractId, period, vars){
+    DB.variablesByContractPeriod[`${contractId}|${period}`] = { ...(DB.variablesByContractPeriod[`${contractId}|${period}`]||{}), ...vars };
+  }
+
+  function renderContractsList(){
+    const [cc, ss] = siteSelect.value.split(':');
+    const q = searchInput.value?.toLowerCase() || '';
+    const rows = DB.contracts
+      .filter(c=>c.country===cc && c.site===ss)
+      .filter(c=> {
+        const emp = DB.employees.find(e=>e.id===c.employeeId);
+        return emp.name.toLowerCase().includes(q) || (emp.role.toLowerCase().includes(q));
+      });
+
+    listEl.innerHTML = rows.map(c=>{
+      const emp = DB.employees.find(e=>e.id===c.employeeId);
+      const period = periodSelect.value;
+      const slips = Object.values(DB.payroll[period] || {}).filter(p=>p.contractId===c.id);
+      return `<div class="row" data-type="contract" data-id="${c.id}">
+        <div class="avatar">📝</div>
+        <div>
+          <div class="title">${emp.name} — ${emp.role}</div>
+          <div class="meta">${FLAG(c.country)} ${c.site} • Base ${c.currency} ${c.baseSalary} • Grille ${c.gridVersion}</div>
+        </div>
+        <div class="inline-actions"><span class="chip">🧾 ${slips.length}</span><span class="badge ok">${c.status}</span></div>
+      </div>`
+    }).join('');
+
+    listCount.textContent = rows.length;
+
+    Array.from(listEl.querySelectorAll('.row')).forEach(row=>{
+      row.addEventListener('click', ()=>{
+        selection = { type: row.dataset.type, id: row.dataset.id };
+        renderContractDetail(selection.id);
+      });
+    });
+  }
+
+  function renderContractCard(c){
+    return `<div class="grid-3">
+      <div class="kv"><label>Période</label><div>${c.start} → ${c.end?c.end:'—'}</div></div>
+      <div class="kv"><label>Grille</label><div>${c.gridVersion}</div></div>
+      <div class="kv"><label>Base</label><div>${c.currency} ${c.baseSalary.toLocaleString('fr-FR')}</div></div>
+      <div class="kv"><label>Ind. logement</label><div>${Math.round(c.indemn_housing_pct*100)}% (plaf. ${c.currency} ${c.housing_cap})</div></div>
+      <div class="kv"><label>Hardship</label><div>${c.currency} ${c.hardship}</div></div>
+      <div class="kv"><label>Statut</label><div>${c.status}</div></div>
+    </div>`;
+  }
+
+  function renderContractDetail(contractId){
+    const c = DB.contracts.find(x=>x.id===contractId);
+    const e = DB.employees.find(x=>x.id===c.employeeId);
+    const period = periodSelect.value;
+    const slips = Object.values(DB.payroll[period] || {}).filter(p=>p.contractId===c.id);
+
+    detailEl.innerHTML = `
+      <h2>📝 Contrat — ${e.name}</h2>
+      ${renderContractCard(c)}
+
+      <div style="margin:8px 0"><button class="ghost" id="toEmployee">Ouvrir la fiche employé</button></div>
+
+      <div class="section">
+        <h3>Amender (nouvelle version)</h3>
+        <div class="grid-3">
+          <div class="kv"><label>Base (${c.currency})</label><input id="amBase" type="number" step="50" value="${c.baseSalary}"></div>
+          <div class="kv"><label>Indemnité logement %</label><input id="amHousingPct" type="number" step="1" value="${Math.round(c.indemn_housing_pct*100)}"></div>
+          <div class="kv"><label>Plafond logement (${c.currency})</label><input id="amHousingCap" type="number" step="50" value="${c.housing_cap}"></div>
+          <div class="kv"><label>Hardship (${c.currency})</label><input id="amHardship" type="number" step="10" value="${c.hardship}"></div>
+          <div class="kv"><label>Date d’effet</label><input id="amDate" type="date" value="2025-04-15"></div>
+        </div>
+        <div style="margin-top:8px"><button id="applyAmend">Créer l’avenant</button></div>
+      </div>
+
+      <div class="section">
+        <h3>Bulletins — ${PERIOD_LABEL(period)}</h3>
+        ${slips.length? slips.map(renderSlipLine).join('') : '<div class="meta">Aucun bulletin pour cette période.</div>'}
+      </div>
+    `;
+
+    document.getElementById('toEmployee').onclick = ()=>{
+      setTab('employees');
+      selection = { type:'employee', id: e.id };
+      renderEmployeesList();
+      renderEmployeeDetail(e.id);
+    };
+
+    document.getElementById('applyAmend').onclick = ()=>{
+      const base = Number(document.getElementById('amBase').value||c.baseSalary);
+      const pct = Number(document.getElementById('amHousingPct').value||Math.round(c.indemn_housing_pct*100)) / 100;
+      const cap = Number(document.getElementById('amHousingCap').value||c.housing_cap);
+      const hs  = Number(document.getElementById('amHardship').value||c.hardship);
+      const eff = document.getElementById('amDate').value || '2025-04-15';
+      c.amendments.push({ before:{ baseSalary:c.baseSalary, indemn_housing_pct:c.indemn_housing_pct, housing_cap:c.housing_cap, hardship:c.hardship }, after:{ baseSalary:base, indemn_housing_pct:pct, housing_cap:cap, hardship:hs }, effective: eff, at: new Date().toISOString() });
+      // Snapshot (simple) : appliquer directement, pour la démo
+      c.baseSalary = base; c.indemn_housing_pct = pct; c.housing_cap = cap; c.hardship = hs;
+      alert('✅ Avenant créé et appliqué.');
+      renderContractDetail(c.id);
+    };
+  }
+
+  function renderConfigList(){
+    // La liste affiche simplement le site courant
+    listEl.innerHTML = `<div class="row" data-type="config" data-id="${siteSelect.value}">
+      <div class="avatar">⚙️</div>
+      <div>
+        <div class="title">Modèle de bulletin du site</div>
+        <div class="meta">${siteSelect.options[siteSelect.selectedIndex].textContent}</div>
+      </div>
+      <div class="inline-actions"><span class="badge">éditable</span></div>
+    </div>`;
+    listCount.textContent = 1;
+    Array.from(listEl.querySelectorAll('.row')).forEach(row=>{
+      row.addEventListener('click', ()=>{
+        selection = { type: 'config', id: row.dataset.id };
+        renderConfigDetail();
+      });
+    });
+  }
+
+  function renderConfigDetail(){
+    const [cc, ss] = siteSelect.value.split(':');
+    const model = getModelForSite(cc, ss);
+
+    detailEl.innerHTML = `
+      <h2>⚙️ Modèle de bulletin — ${FLAG(cc)} ${ss}</h2>
+      <div class="section grid-3">
+        <div class="kv"><label>Nom</label><input id="mName" type="text" value="${model.name}"></div>
+        <div class="kv"><label>Portée</label><div class="badge">Site</div></div>
+        <div class="kv"><label>Variables</label><div class="meta">taux/caps/ratios</div></div>
+      </div>
+
+      <div class="section">
+        <h3>Variables</h3>
+        <div class="grid-3">
+          <div class="kv"><label>Indemnité logement %</label><input id="vHousingPct" type="number" step="1" value="${Math.round(model.variables.indemn_housing_pct*100)}"></div>
+          <div class="kv"><label>Plafond logement</label><input id="vHousingCap" type="number" step="50" value="${model.variables.housing_cap}"></div>
+          <div class="kv"><label>Taux social</label><input id="vRateSocial" type="number" step="0.01" value="${model.variables.rate_social}"></div>
+          <div class="kv"><label>Taux impôt</label><input id="vRateTax" type="number" step="0.01" value="${model.variables.rate_tax}"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Lignes & formules</h3>
+        ${model.lines.map((l,idx)=>`
+          <div class="section">
+            <div class="grid-3">
+              <div class="kv"><label>Section</label><div class="badge">${l.section}</div></div>
+              <div class="kv"><label>Libellé</label><input data-idx="${idx}" class="lnLabel" type="text" value="${l.label}"></div>
+              <div class="kv"><label>Identifiant</label><div class="pill">${l.id}</div></div>
+            </div>
+            <div class="kv" style="margin-top:6px"><label>Formule</label><input data-idx="${idx}" class="lnFormula" type="text" value="${l.formula.replace(/"/g,'&quot;')}"></div>
+            <div class="code" style="margin-top:6px">Variables possibles: base_salary, indemn_housing_pct, housing_cap, hardship, mission_expenses, rate_social, rate_tax, ainsi que les ids déjà calculés (ex. base, housing, gross…). Fonctions: min(), max().</div>
+          </div>
+        `).join('')}
+        <div><button id="saveModel">Enregistrer le modèle</button> <button class="ghost" id="previewModel">Aperçu sur un employé</button> <button id="activateModel">Activer pour le site</button></div>
+        <div id="modelPreview"></div>
+      </div>
+    `;
+
+    document.getElementById('saveModel').onclick = ()=>{
+      model.name = document.getElementById('mName').value || model.name;
+      model.variables.indemn_housing_pct = Number(document.getElementById('vHousingPct').value||Math.round(model.variables.indemn_housing_pct*100))/100;
+      model.variables.housing_cap = Number(document.getElementById('vHousingCap').value||model.variables.housing_cap);
+      model.variables.rate_social = Number(document.getElementById('vRateSocial').value||model.variables.rate_social);
+      model.variables.rate_tax = Number(document.getElementById('vRateTax').value||model.variables.rate_tax);
+      document.querySelectorAll('.lnLabel').forEach(inp=>{ model.lines[Number(inp.dataset.idx)].label = inp.value; });
+      document.querySelectorAll('.lnFormula').forEach(inp=>{ model.lines[Number(inp.dataset.idx)].formula = inp.value; });
+      alert('💾 Modèle enregistré (brouillon)');
+    };
+
+    document.getElementById('activateModel').onclick = ()=>{
+      DB.configBySite[getSiteKey(cc,ss)] = JSON.parse(JSON.stringify(model));
+      alert('✅ Modèle activé pour le site. Il sera utilisé lors de la validation de la période.');
+    };
+
+    document.getElementById('previewModel').onclick = ()=>{
+      // Choisir arbitrairement le premier contrat du site
+      const contract = DB.contracts.find(c=>c.country===cc && c.site===ss);
+      if(!contract){ document.getElementById('modelPreview').innerHTML = '<div class="meta">Aucun contrat pour ce site.</div>'; return; }
+      const period = periodSelect.value;
+      const variables = getVariables(contract.id, period);
+      const slip = computePayslip(contract, period, model, variables);
+      document.getElementById('modelPreview').innerHTML = renderSlipBlock(slip, true);
+    };
+  }
+
+  // Interaction globale
+  tabs.forEach(t=> t.addEventListener('click', ()=> setTab(t.dataset.tab)));
+  siteSelect.addEventListener('change', ()=>{ selection=null; render(); });
+  periodSelect.addEventListener('change', ()=>{ selection=null; render(); });
+  validateBtn.addEventListener('click', validateCurrentPeriod);
+  searchInput.addEventListener('input', ()=> render());
+
+  // Boot
+  genSeed();
+  initSelectors();
+  setTab('employees');
+  render();
+
+  </script>
+</body>
+</html>
