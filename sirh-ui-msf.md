@@ -1,153 +1,121 @@
 # 🧭 Spécification — SIRH MSF (Prototype HTML standalone)
 
 ## 1) Contexte
-- **Objectif** : proposer un **SIRH léger** pour managers RH de sites MSF, avec **liste Employés**, **liste Contrats**, **configuration de modèle de bulletin**, et **génération/verrouillage** des bulletins de paie **par site et par période**.
-- **Utilisateurs** : managers RH de **site** (et, à terme, RH pays / paie).
-- **Périmètre v1** :
-  - Consultation & navigation **Employé ⇄ Contrat ⇄ Bulletins**.
-  - **Validation** d’une période de paie (génère/verrouille les bulletins du site sélectionné).
-  - **Édition locale** du **modèle de bulletin** (variables + formules) au niveau **site**.
-  - **Avenant** sur un contrat (base, indemnités, date d’effet) + **frais de mission mensuels**.
-- **Thème & UX** : thème **clair**, accent **rouge MSF** ⛑️, emojis métiers (🧑‍⚕️, 📝, 🧾, ⚙️).
+- **Objectif** : proposer un **prototype autonome** de consultation RH centré sur la **fiche employé**. L'interface combine une liste filtrable et une fiche détaillée générées côté navigateur à partir d'un jeu de données aléatoire.
+- **Utilisateurs** : responsables RH de terrain souhaitant naviguer rapidement dans les informations principales d'un collaborateur.
+- **Périmètre de cette démo** :
+  - **Affichage** d'une liste d'employés filtrable par **terrain**, **type de contrat**, **catégorie socio-professionnelle**, **statut** et **recherche texte**.
+  - **Consultation** d'une fiche employé riche : identité, coordonnées, contrat courant, historique de contrats, dépendants, congés, qualifications et bulletins de paie.
+  - **Statistiques** synthétiques en pied de page (volume d'employés listés, filtres actifs...).
+- **Thème & UX** : thème clair bleu, layout maître/détail, badges et accords pliables (accordéons) pour l'historique et les bulletins.
 - **Hypothèses** :
-  - 2 pays (🇫🇷 **France** en **EUR**, 🇨🇭 **Suisse** en **CHF**), **6 sites** (3 par pays).
-  - ~**100 employés** répartis sur les 6 sites.
-  - **1–3 contrats** par employé (historiques), **1 seul actif** à un instant T.
-  - **Périodes de paie existantes** : **janvier, février, mars 2025** (déjà générées/validées). **Avril 2025** = période **courante** (ouverte).
-- **Hors périmètre v1** : authentification, sécurité d’entreprise, stockage serveur, conformité fiscale par pays, export comptable/banque.
+  - Jeu de données **aléatoire** généré à l'initialisation (~60 employés).
+  - **5 terrains** fictifs en RDC avec devise USD.
+  - Contrats, bulletins et autres informations calculées aléatoirement mais cohérentes.
+- **Hors périmètre** : gestion multi-onglets, modification des données, persistance, validation de périodes.
 
 ---
 
 ## 2) Données (lisible, non-technique)
 
 ### 2.1 Entités & champs essentiels
-- **Pays** : nom, code, **devise**, paramètres paie par défaut (ex. taux sociaux/impôt de démo).
-- **Site (terrain)** : nom de ville, pays, devise par défaut, jours fériés (optionnel), **modèle de bulletin actif**.
-- **Employé** 👤 : identité, coordonnées (tél, email, adresse), **statut** (Actif, En mission, Sorti), **qualifications** (avec dates), **dépendants** (nom, lien, naissance), alertes docs (visa, ID).
-- **Contrat** 📝 : employé, site/pays, **poste**, **période** (début/fin), **type** (local/expat), **grille salariale** (version), **salaire de base**, **indemnités** (logement %, plafonds, hardship), **devise**, **statut validation** (brouillon/en revue/validé/clos), **avenants** (avant/après + date d’effet).
-- **Grille salariale** 💸 (simplifiée démo) : version par **pays**, **base par poste**, période de validité.
-- **Variables mensuelles** ⏱️ : par **(contrat, période)** — **frais de mission**, primes exceptionnelles, heures sup, absences (v1 : frais de mission).
-- **Modèle de bulletin** ⚙️ : porté par **site** (hérite d’un **modèle par pays**), **variables éditables** (taux/ratios/plafonds) + **lignes** (libellé, section : gains/retenues/synthèse, **formule** lisible).
-- **Bulletin de paie** 🧾 : (employé, contrat, site, **période**), lignes calculées, totaux (gains, retenues, **net à payer**), **statut** (Calculé/Validé/Payé), **modèle utilisé** (nom/version), **date de génération**.
+- **Terrain** : `code`, `name`, `flag`, `currency` (liste fixe `TERRAINS`).
+- **Employé** 👤 : `id`, `civility`, `name`, `role`, `contractType`, `socioCategory`, `echelon`, `level`, `status`, coordonnées (`email`, `phone`, `address`), `birthDate`, `maritalStatus`, `terrain` (référence), `baseSalary`.
+- **Contrat (historique)** 📝 : collection `contractHistory[]` avec `label`, `contractType`, `startDate`, `endDate`, `functionName`, `socioCategory`, `echelon`, `level`, `gridFunction`, `salaryGrid`, `baseSalary`, `currency`.
+- **Contrat courant** : dernière entrée de `contractHistory`, exposée sous `currentContract`.
+- **Dépendant** 🧒 : `id`, `name`, `relation`, `birthDate`, `active`, attributs optionnels (`childStatus`, `handicap`, `worker`).
+- **Congé** 🌴 : `id`, `type`, `startDate`, `endDate`, `days`, `counted`.
+- **Qualifications** 🎓 : `educationLevel`, `diploma`, `year`, `domains[]`, `languages[]` (nom + niveau), indicateurs `languageFlags` (fr/es/en).
+- **Bulletin de paie** 🧾 : `id`, `period` (`YYYY-MM`), `status`, `method`, `currency`, `netAmount`, `lines[]` (libellé, montant, catégorie, tonalité visuelle).
+- **Périodes de paie** : liste fixe `PERIODS` (`2025-01` → `2025-04`).
 
 ### 2.2 Relations
-- 1 **pays** → N **sites**.  
-- 1 **site** → N **contrats** ; **0..1 modèle** actif (par version).  
-- 1 **employé** → N **contrats** (mais **1 seul actif** à T).  
-- 1 **contrat** → N **bulletins** (1 par période), N **variables mensuelles** (0..1 par période).  
-- 1 **bulletin** est généré à partir d’**1 modèle** (version), **1 contrat**, **1 période**.
+- 1 **terrain** → N **employés** (affectation directe via `employee.terrain`).
+- 1 **employé** → N **contrats** (`contractHistory`) dont **1 actif** (`currentContract`).
+- 1 **employé** → N **dépendants**, N **congés**, 1 bloc **qualifications**.
+- 1 **employé** → N **bulletins** (1 par période de la liste `PERIODS`).
 
 ### 2.3 Règles métier clés
-- **Unicité contrat actif** par employé (pas de chevauchement).
-- **Validation de période** (site + mois) ⇒ **génère & verrouille** tous les bulletins **Calculés** de cette période/site via le **modèle actif** à l’instant T.  
-  **Anciennes périodes restent figées** (pas d’effet rétroactif).
-- **Modèle de bulletin** : modifiable (variables + formules), **prévisualisable** sur un cas, **activable** pour le site.  
-- **Avenant** : capture **avant/après** + **date d’effet** ; contrôle basique anti-chevauchement ; met à jour base/indemnités futures.
-- **Frais de mission** : saisis **par période**, injectés dans le calcul.
+- **Contrat courant** : dernière entrée de l'historique, forcée en `endDate = null`.
+- **Salaire** : incrément progressif sur les entrées d'historique (augmentation lors des renouvellements/amendements).
+- **Bulletins** : statut "Payé" par défaut sauf dernier mois parfois "À payer" ; calcul des lignes dérivé du salaire de base et de montants aléatoires cohérents (gains/déductions/synthèse).
+- **Congés** : chaque employé dispose de 1 à 3 entrées, `counted` indique la prise en compte dans la paie.
+- **Dépendants** : 0 à 4 entrées, attributs spécifiques selon le lien (enfant vs adulte).
+- **Filtres** : application combinée (terrain + recherche + selecteurs) sur la liste d'employés.
 
 ### 2.4 Jeux de données de démo
-- **Pays/Sites** :  
-  - 🇫🇷 **France** : Paris, Lyon, Marseille (EUR)  
-  - 🇨🇭 **Suisse** : Genève, Lausanne, Zurich (CHF)
-- **Rôles** (ex.) : Infirmier·e, Médecin, Logisticien·ne, Admin RH, Pharmacien·ne, Tech WASH, Sage-femme.
-- **Grilles (démo)** : FR-Std-v1 / CH-Std-v1 avec **base par rôle** (valeurs pédagogiques).
-- **Modèles par pays (démo)** :
-  - **Variables** : `indemn_housing_pct` (FR 20% / CH 25%), `housing_cap` (FR 800 / CH 1200), `rate_social` (FR 0,22 / CH 0,15), `rate_tax` (FR 0,12 / CH 0,10)
-  - **Lignes type** :  
-    - Gains : *Salaire de base* `= base_salary` ; *Indemnité logement* `= min(indemn_housing_pct * base_salary, housing_cap)` ; *Hardship* `= hardship` ; *Frais de mission* `= mission_expenses`  
-    - Synthèse : *Total gains* `= base + housing + hardship + mission`  
-    - Retenues : *Cotisations sociales* `= rate_social * gross` ; *Impôt* `= rate_tax * max(gross - social, 0)`  
-    - Synthèse : *Net à payer* `= gross - social - tax`
-- **Périodes** : **Jan, Fév, Mar 2025** (déjà **Validé**), **Avr 2025** (ouverte).
+- **Terrains** : `CD_KIN1`, `CD_LUB1`, `CD_GOM1`, `CD_KIS1`, `CD_MBA1` (tous 🇨🇩, devise USD).
+- **Contrats** : 2 à 3 entrées historiques par employé ; grilles nommées `GF_<code terrain>_V1` / `GS_<code terrain>_V1`.
+- **Rôles** : tirés de `FUNCTIONS` (ex. Caissier, Analyste, Directeur de terrain, Technicien WASH...).
+- **Bulletins** : 4 mois (janvier → avril 2025) avec lignes standards (gains, retenues, résumé) et possibilité d'acompte/prêt.
+- **Autres référentiels** : types de contrat (`CDD`, `CDI`, `Consultant`, `Prestation`, `Stage`), catégories socio-prof (`EMP`, `AMT`, `CAD`), modes de paiement (`Virement`, `Cash`, `Mobile`), types de congés, niveaux linguistiques (`A2` → `C2`).
 
 ---
 
 ## 3) Interface
 
 ### 3.1 Layout & thèmes
-- **Thème clair**, accent **rouge MSF** ⛑️ pour CTA/badges actifs.
-- **Barre supérieure** (sticky) :  
-  - **Sélecteur Site** (limité au périmètre utilisateur)  
-  - **Sélecteur Période** (mois/année)  
-  - **Bouton** **Valider la période**  
-  - **Recherche globale** (nom, poste)
-- **3 onglets** (maître-détail) : **Employés**, **Contrats**, **Configuration**.
-- **Panneau gauche** : **liste compacte** ; **panneau droit** : **fiche détaillée**.
+- **Topbar sticky** avec :
+  - **Logo / titre** "Homere Connect — Prototype".
+  - **Sélecteur Terrain** (liste `TERRAINS`).
+  - **Recherche globale** (champ texte).
+  - **Filtres** par type de contrat, catégorie socio-professionnelle, statut.
+- **Layout maître/détail** (`.layout`) : panneau gauche listant les employés, panneau droit affichant la fiche détaillée.
+- **Carte employé** : avatar initiales, nom, poste, terrain (code + ville), statut badge, info salaire/contrat.
+- **Thème visuel** : palette bleue (accent `#3C71A5`), cartes arrondies, accordéons pour sections historisées.
 
 ### 3.2 Onglet **Employés** 👩‍⚕️👨‍⚕️
-- **Liste** (gauche) : avatar, **Nom**, **Poste**, **Site** (drapeau + ville), **statut** (badge), **contrat courant** (statut), **compteur bulletins** sur la période sélectionnée, indicateur ⚠️ docs/qualifs.
-- **Filtres** rapides : statut, poste, alertes docs.
-- **Fiche Employé** (droite) — sections :
-  1) **Aperçu** : identité, coordonnées, dépendants, alertes, **résumé paie** période courante.  
-  2) **Contrat courant** : poste, site, dates, **grille** (version), **base**, **indemnités** (valeurs site + overrides).  
-  3) **Historique contrats** : versions/avenants.  
-  4) **Fiches de paie** : liste par mois (statut, totaux, lien).  
-  5) **Qualifs & docs** : compétences/langues/certificats (validité).  
-  6) **Variables mensuelles** (période sélectionnée) : **Frais de mission** (montant + note).  
-- **Actions** :
-  - **Aperçu bulletin** avec le **modèle actif** (sans figer).
-  - **Naviguer** vers la **Fiche Contrat** (contrat courant).
+- **Liste gauche** :
+  - Affiche dynamiquement tous les employés filtrés.
+  - Chaque ligne montre avatar, nom, poste, terrain, statut et contrat courant.
+  - Survol avec élévation ; clic ⇒ charge la fiche détaillée.
+- **Fiche droite** (après sélection) :
+  1) **En-tête** : nom, rôle, terrain, statut, type de contrat, catégorie, compteur de dépendants.
+  2) **Informations personnelles** : civilité, naissance, âge, coordonnées, adresse, statut marital, échelon/niveau.
+  3) **Historique des contrats** : accordéons détaillant dates, grilles, salaire, catégories.
+  4) **Personnes à charge** : tableau (nom, date de naissance, lien, statut enfant, handicap, travailleur, actif) ou message vide.
+  5) **Congés** : tableau type, dates, durée, indicateur de comptabilisation paie.
+  6) **Qualifications** : niveau d'études, diplôme, année, domaines, langues + drapeaux Oui/Non.
+  7) **Bulletins de salaire** : accordéons par mois avec statut, net, mode de paiement, détail des lignes (gains/déductions/synthèse).
+- **Actions** : uniquement navigation et ouverture/fermeture des accordéons (pas de modification).
 
 ### 3.3 Onglet **Contrats** 📝
-- **Liste** (gauche) : Employé, Poste, Site, **Période**, **Statut**, **Grille** (version), **Base**, badge Indemnités (défaut/modifiées), **Devise**, **# bulletins** (période courante).  
-  **Filtres** : site, statut, fin ≤30j, grille, devise, “sans bulletin période”.
-- **Fiche Contrat** (droite) — sections :
-  1) **Infos générales** : employé, poste, site/pays, type, quotité, périodes.  
-  2) **Rémunération** : grille (version), **base**, **indemnités** (logement %, plafonds, hardship), devise.  
-  3) **Variables mensuelles** (période) : frais de mission, (primes, H. sup — option v2).  
-  4) **Fiches de paie** : liste (ouvrir).  
-  5) **Historique des versions** : avenants (avant/après, date d’effet).
-- **Actions** :
-  - **Amender (nouvelle version)** : **base** (alignée à la **grille**), **indemnités** vs valeurs par défaut site, **date d’effet** (contrôle chevauchement).  
-  - **Clore** le contrat (définir fin + motif).  
-  - **Naviguer** vers **Fiche Employé**.
+- **Non implémenté** dans ce prototype (aucun changement de contenu quand on clique : onglet inexistant).
 
 ### 3.4 Onglet **Configuration** ⚙️ (modèle de bulletin par **site**)
-- **Variables éditables** (types : montant, %, bool, formule) : `indemn_housing_pct`, `housing_cap`, `rate_social`, `rate_tax`, etc.
-- **Lignes & formules** (éditeur type “tableur” lisible) : section, libellé, identifiant, **formule** (cf. glossaire 2.4).
-- **Aperçu** : appliquer le **modèle** du site sur un **cas employé + période** (rendu bulletin à droite).
-- **Activer** le modèle pour le site (ne **modifie pas** les bulletins déjà validés).
-- **Rappels UX** : info-bulles sur variables, avertissement sur effets non rétroactifs.
+- **Non implémenté** dans ce prototype (pas d'édition ni d'aperçu de modèle).
 
 ### 3.5 Parcours critiques (acceptance)
-- **Valider période** : “Site = Genève, Période = Avril 2025” ⇒ génère **1 bulletin/contrat actif** du site, statut **Validé**, **inchangé** sur Jan–Mar.  
-- **Modifier modèle** puis **Activer** ⇒ seul **prochain** “Valider période” l’utilisera.  
-- **Saisir frais de mission** (contrat, période) ⇒ visible dans **aperçu** puis dans bulletin **Validé**.  
-- **Avenant** (base + logement % + plafond + hardship, date d’effet) ⇒ impacte les **périodes à partir de la date** (v1 démo : application immédiate).
+- **Filtrer par terrain** : le sélecteur rafraîchit la liste et réinitialise la fiche (message "Bienvenue").
+- **Recherche / filtres** : modifier la recherche ou un filtre déclenche un recalcul instantané de la liste et du compteur.
+- **Consulter un employé** : clic sur une ligne ⇒ chargement complet de la fiche avec accordéons fonctionnels.
+- **Naviguer dans les bulletins** : clic sur un bulletin ⇒ affiche/masque le détail des lignes correspondantes.
 
 ---
 
 ## 4) Technique
 
 ### 4.1 Livraison
-- **Un seul fichier** `index.html` (HTML + CSS + JS embarqués). Ouvrable directement dans un navigateur moderne.
+- **Un seul fichier** `sirh-ui-msf.html` (HTML, CSS et JS embarqués). Ouvrable directement dans un navigateur moderne.
 
 ### 4.2 Architecture (démo)
-- **Données en mémoire** (JS) :  
-  - `COUNTRIES`, `GRIDS`, `DEFAULT_MODELS` (démo),  
-  - `DB.employees[]`, `DB.contracts[]`, `DB.payroll[period]{}`, `DB.configBySite[siteKey]`, `DB.variablesByContractPeriod[key]`.
-- **Seed** : génération aléatoire ~100 employés, 1 contrat actif/employé, bulletins **Validés** pour **Jan–Mar 2025**.
-- **Sélecteurs** : **Site** (`FR:Paris`…​) & **Période** (`YYYY-MM`).  
-- **Formules** : mini-moteur (type `new Function`) **restreint au scope** des variables autorisées (`base_salary`, `indemn_housing_pct`, `housing_cap`, `hardship`, `mission_expenses`, `rate_social`, `rate_tax`, + symboles intermédiaires comme `base`, `housing`, `gross`, `social`, `tax`, `net`; fonctions `min`, `max`).  
-  > ⚠️ Démo uniquement (pas de sandbox robuste ; ne pas utiliser en production).
-- **Calcul bulletin** : `computePayslip(contract, period, model, variables)` retourne lignes + totaux (arrondis 2 décimales), **modèle** référencé.
-- **Validation période** : (site, période) ⇒ (re)calcule tous les bulletins **au statut Validé** avec le **modèle actif** du site ; **fige** le résultat pour cette période.
-- **Navigation** : maître-détail par onglet ; **recherche** full-text simple (nom/poste) ; **filtres** basiques.
-- **Performances** (démo) : 100 employés / 6 sites ⇒ rendu instantané sans virtualisation.
+- **Données en mémoire** : constantes (`TERRAINS`, `CONTRACT_TYPES`, `SOCIO_CATEGORIES`, etc.) et `state` (`employees`, `selectionId`).
+- **Génération aléatoire** : fonctions utilitaires (`rand`, `pick`, `uid`) pour créer employés, dépendants, congés, qualifications, bulletins et historiques de contrat lors de `init()`.
+- **Rendu** :
+  - **Liste** générée via `renderList()` (filtre sur terrain sélectionné, recherche, selecteurs) + insertion HTML.
+  - **Fiche** rendue par `renderDetail(employee)` avec templates string et binding des accordéons.
+- **Interactions** : écouteurs `change`/`input` sur les filtres et la recherche ; clic sur éléments de liste pour sélectionner un employé ; accordéons pilotés par `data-target`.
+- **Internationalisation** : formatage des dates/mois via `Intl.DateTimeFormat('fr-FR')` et `toLocaleDateString`.
 
 ### 4.3 Extensibilité (pistes v2)
-- **Persistance** : `localStorage` (démo) ou backend REST (Node/Python) + DB (Postgres).  
-- **Sécurité** : auth/rôles (JWT) ; audit étendu.  
-- **Fiscalité** : tables de cotisations/IR réelles par pays ; multi-devises & taux de change.  
-- **Exports** : PDF bulletins, CSV variables/paie, interface banque.  
-- **Qualifs/Docs** : upload & workflow d’expiration (alertes).  
-- **Moteur de formules** sécurisé (parser, AST, sandbox).
+- Ajouter de **nouveaux onglets** (Contrats, Configuration) ou actions (édition, validation) pour couvrir le périmètre fonctionnel complet.
+- Remplacer les données aléatoires par une **API** ou un stockage local (`localStorage`).
+- Introduire une **gestion d'état** plus structurée (store, frameworks) et une pagination/virtualisation pour de plus grands volumes.
+- Prévoir un **moteur de calcul** configurable pour les bulletins (formules, paramètres). 
 
 ### 4.4 Définition de Fini (DoD)
-- [ ] Liste Employés filtrable + fiche employé complète.  
-- [ ] Liste Contrats filtrable + fiche contrat (avenant opérationnel).  
-- [ ] Onglet Configuration : édition **variables** & **formules**, **aperçu**, **activation**.  
-- [ ] **Validation période** génère/verrouille bulletins **uniquement** pour le **site+période** sélectionnés.  
-- [ ] **Jan–Mar 2025** visibles comme **déjà validés** ; **Avr 2025** ouverte.  
-- [ ] Navigation **Employé ⇄ Contrat** et consultation **bulletins** par les deux entrées.  
-- [ ] Thème clair + accent rouge MSF + emojis.
+- [ ] Liste Employés filtrable par terrain, recherche, type de contrat, catégorie, statut.
+- [ ] Fiche employé complète avec sections contractuelles, paie, congés, qualifications.
+- [ ] Accordéons fonctionnels pour historique contrats et bulletins.
+- [ ] Statistiques de synthèse en pied de page.
+- [ ] Génération aléatoire cohérente des données à l'initialisation.
